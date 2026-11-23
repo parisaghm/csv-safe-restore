@@ -246,6 +246,21 @@ def test_errors_leave_no_output_behind(workspace: Workspace) -> None:
     assert sorted(p.name for p in workspace.folder.iterdir()) == ["edited.csv", "original.csv"]
 
 
+def test_a_directory_as_input_gets_the_same_clear_error_everywhere(workspace: Workspace) -> None:
+    # Windows reports reading a directory as "Permission denied"; the message
+    # must still say what is wrong, on every platform.
+    original, edited = files(workspace)
+    folder = workspace.folder / "not-a-file.csv"
+    folder.mkdir()
+    output = workspace.folder / "repaired.csv"
+    for inputs in ((folder, edited), (original, folder)):
+        code, out, err = workspace.run("repair", *inputs, *OPTIONS, "--output", output)
+        assert code == 2 and out == ""
+        assert f"Expected a CSV file but got a directory: {folder}" in err
+        assert "Permission denied" not in err
+        assert not output.exists()
+
+
 def test_usage_errors_exit_with_2(workspace: Workspace) -> None:
     original, edited = files(workspace)
     assert workspace.run("check", original, edited)[0] == 2  # --key is required

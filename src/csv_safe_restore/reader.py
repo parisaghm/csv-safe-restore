@@ -62,6 +62,10 @@ def parse_delimiter(text: str) -> str:
 def read_csv(path: str | Path, delimiter: str = ",") -> Table:
     """Read a CSV file strictly, or raise CsvSafeRestoreError explaining why not."""
     path = Path(path)
+    # Checked first because Windows reports reading a directory as
+    # "Permission denied" rather than IsADirectoryError.
+    if path.is_dir():
+        raise CsvSafeRestoreError(f"Expected a CSV file but got a directory: {path}")
     try:
         data = path.read_bytes()
     except FileNotFoundError:
