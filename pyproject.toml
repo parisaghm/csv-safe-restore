@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "csv-safe-restore"
+dynamic = ["version"]
+description = "Safely restore identifiers (SKUs, barcodes, postal codes, long IDs) that a spreadsheet damaged in a CSV file, using a clean reference copy. Never guesses."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+keywords = ["csv", "excel", "data-quality", "leading-zeros", "barcode", "identifiers", "data-engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "hypothesis>=6"]
+
+[project.scripts]
+csv-safe-restore = "csv_safe_restore.cli:main"
+
+[tool.hatch.version]
+path = "src/csv_safe_restore/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/csv_safe_restore"]
+
+[tool.hatch.build.targets.sdist]
+# An explicit list, so that stray local files can never end up in a release.
+# The benchmark (2 MB of data) is in the repository, not in the archive.
+include = [
+    "src/",
+    "tests/",
+    "docs/",
+    "examples/",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

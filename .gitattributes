@@ -1,0 +1,7 @@
+# Keep data files byte-for-byte identical on every platform.
+#
+# Git on Windows converts line endings of text files on checkout by default.
+# CSV line endings are data here: the tool keeps the edited file's line ending,
+# and CI compares the example output with examples/repaired.csv byte for byte.
+*.csv -text
+examples/** -text

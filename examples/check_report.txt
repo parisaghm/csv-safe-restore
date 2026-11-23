@@ -1,0 +1,60 @@
+csv-safe-restore 0.1.0a1 - check
+  Reference file     : examples/original.csv (7 records)
+  Edited file        : examples/edited.csv (7 records)
+  Key                : product_id
+  Identifier columns : sku, barcode, postal_code, internal_id  (detected automatically; set --identifier-columns to choose)
+  GTIN check on      : barcode
+  Mode               : strict (default; repair only where another column confirms the record)
+
+SUMMARY
+  Records matched by key                      6
+  New records (only in edited file)           1
+  Deleted records (only in reference)         1
+  Records that could not be matched           0
+  Identifier values unchanged                 5
+  Confirmed damage (repairable)              16
+  Findings that need review                   4
+  Edits kept in other columns                 3  (price: 1, description: 1, quantity: 1)
+
+CONFIRMED DAMAGE - the repair command will restore these (16)
+  line 2  product_id='P003'  barcode: '12345678905' -> '0012345678905'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 2  product_id='P003'  postal_code: '501' -> '00501'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 2  product_id='P003'  internal_id: '9007199254740990' -> '9007199254740993'  [digits lost (numbers keep only about 15 significant digits); record confirmed by column 'description']
+  line 3  product_id='P001'  sku: '123' -> '00123'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 3  product_id='P001'  barcode: '36000291452' -> '0036000291452'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 3  product_id='P001'  postal_code: '2134' -> '02134'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 3  product_id='P001'  internal_id: '1234567890123450' -> '1234567890123456'  [digits lost (numbers keep only about 15 significant digits); record confirmed by column 'description']
+  line 4  product_id='P002'  sku: '123' -> '0123'  [leading zeros removed (value was read as a number); record confirmed by column 'barcode']
+  line 4  product_id='P002'  internal_id: '1234567890123450' -> '1234567890123457'  [digits lost (numbers keep only about 15 significant digits); record confirmed by column 'barcode']
+  line 5  product_id='P004'  sku: '1.00E+05' -> '1E5'  [rewritten in scientific notation; record confirmed by column 'postal_code']
+  line 5  product_id='P004'  barcode: '5.90123E+12' -> '5901234123457'  [rewritten in scientific notation; record confirmed by column 'postal_code']
+  line 5  product_id='P004'  internal_id: '2.024E+19' -> '20240000000000000017'  [rewritten in scientific notation; record confirmed by column 'postal_code']
+  line 6  product_id='P005'  sku: '1-Mar' -> 'MAR1'  [converted to a date; record confirmed by column 'description']
+  line 6  product_id='P005'  barcode: '796030114977' -> '0796030114977'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 6  product_id='P005'  postal_code: '6510' -> '06510'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+  line 6  product_id='P005'  internal_id: '42' -> '00000000000000000042'  [leading zeros removed (value was read as a number); record confirmed by column 'description']
+
+NEEDS REVIEW - left exactly as in the edited file (4)
+  line 7  product_id='P006'  sku: reference 'AB-0042', now 'AB-0043'
+      identifier changed, no known corruption pattern: possibly an intentional edit
+  line 7  product_id='P006'  barcode: reference '9780306406157', now '9780306406158'
+      identifier changed, no known corruption pattern: possibly an intentional edit; not a valid GTIN (check digit does not match)
+  line 7  product_id='P006'  internal_id: reference '555000111222333444', now '555000111222333000'
+      spreadsheet damage, but not restored because the record is not confirmed: digits lost (numbers keep only about 15 significant digits); identifier column 'sku' of this row changed in a way that is not spreadsheet damage, so this may not be the same record
+  line 8  product_id='P008'  barcode: now '4.00638E+12'
+      looks damaged, no trusted reference record: scientific notation; not a valid GTIN (not all digits)
+
+COLLAPSED VALUES - different reference values that now look the same (2)
+  sku: '123' now stands for '00123', '0123'  (lines 3, 4)
+  internal_id: '1234567890123450' now stands for '1234567890123456', '1234567890123457'  (lines 3, 4)
+
+NEW RECORDS - kept as they are (1)
+  line 8  product_id='P008'
+
+DELETED RECORDS - in the reference file only, not added back (1)
+  reference line 8  product_id='P007'
+
+NOTES
+  - The identifier columns were detected automatically (sku, barcode, postal_code, internal_id). Check that every restored column really holds identifiers, or name them with --identifier-columns.
+
+RESULT: 16 value(s) can be restored safely with the repair command; 4 finding(s) need review.
