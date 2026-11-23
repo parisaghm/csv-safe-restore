@@ -1,8 +1,14 @@
 # GitHub release checklist — csv-safe-restore 0.1.0a1
 
 This is the step-by-step plan for the first public **alpha** release on GitHub.
-Every step is done by the maintainer, by hand. Nothing here has been done yet:
-there is no repository, nothing has been pushed, and nothing is on PyPI.
+Every step is done by the maintainer, by hand.
+
+**Progress (2026-11-23):** steps 0–4 are done. The code is pushed to a
+**private** repository, https://github.com/parisaghm/csv-safe-restore, and all
+19 CI jobs pass on Linux, Windows and macOS. The release notes are ready in
+[docs/release-notes-v0.1.0a1.md](docs/release-notes-v0.1.0a1.md). Not done yet:
+making the repository public, the tag, the GitHub release, and the user check
+(steps 5–6). Nothing is on PyPI.
 
 Tick each box as you go. If a step fails, stop and fix it before moving on.
 
@@ -103,7 +109,7 @@ On github.com → **New repository**:
 Then connect and push (GitHub shows the same commands):
 
 ```console
-git remote add origin https://github.com/OWNER/csv-safe-restore.git
+git remote add origin https://github.com/parisaghm/csv-safe-restore.git
 git push -u origin main
 ```
 
@@ -136,8 +142,7 @@ It runs 19 jobs:
 
 - [ ] All 19 jobs are green.
 
-**This is the first time the tool runs on Windows and macOS.** Until now it was
-tested on Linux only. If a Windows or macOS job fails:
+If a job fails (the first run found one Windows-only problem, since fixed):
 
 1. Open the failing job and read the first error.
 2. Do not just rerun it, and do not skip or delete the failing test.
@@ -159,15 +164,21 @@ the pre-release review.)
 
 Only when all CI jobs are green.
 
-1. In `CHANGELOG.md`, replace `(not yet released)` with today's date, then
-   commit and push:
+0. **Make the repository public** (Settings → General → Danger Zone →
+   Change visibility → Public). Until then nobody else can install the alpha:
+   the README install commands only work for public repositories. Before
+   switching, look through the file list on GitHub once more; everything in
+   the repository's history becomes visible.
+
+1. `CHANGELOG.md` is dated 2026-11-23. If you publish on a later day,
+   change the date, then commit and push:
 
    ```console
-   git commit -am "Release 0.1.0a1"
+   git commit -am "Set the 0.1.0a1 release date"
    git push
    ```
 
-   - [ ] CI is green for this commit.
+   - [ ] CI is green for the commit you are about to tag.
 
 2. Tag the release and push the tag:
 
@@ -189,27 +200,9 @@ Only when all CI jobs are green.
    - [ ] Tick **Set as a pre-release**. (This is what marks it as an alpha
          on GitHub.)
    - [ ] Attach the wheel and the `.tar.gz` from step 3.
-   - [ ] Release notes: paste the 0.1.0a1 section of `CHANGELOG.md`, then
-         add the text below.
-
-   Suggested text to add to the release notes:
-
-   > **This is an alpha.** It has been tested on Linux with Python 3.11–3.14
-   > and in CI on Windows and macOS. It has not been tested against a real
-   > Excel. Keep your original files, run `check` first, and read the report
-   > before you use a repaired file.
-   >
-   > **Known safety limitations** (full list in the README):
-   >
-   > - An intentional edit that looks exactly like spreadsheet damage (for
-   >   example a deliberate `00123` → `123`) is restored.
-   > - If record IDs were renumbered and a confirming column was moved along
-   >   with them, the default mode cannot notice.
-   > - `--trust-key` follows renumbered or reused IDs when nothing else in the
-   >   row contradicts them. Use it only if the key column was never changed.
-   >
-   > If the tool ever restores a value it should not have, please open an
-   > issue with the smallest pair of files that shows it.
+   - [ ] Release notes: copy everything in
+         [docs/release-notes-v0.1.0a1.md](docs/release-notes-v0.1.0a1.md)
+         into the description box. Use the **Preview** tab to check it.
 
    - [ ] Publish the release.
 
@@ -219,7 +212,7 @@ On a computer or virtual environment that has never had the project:
 
 ```console
 python -m venv try-alpha
-try-alpha/bin/python -m pip install "git+https://github.com/OWNER/csv-safe-restore@v0.1.0a1"
+try-alpha/bin/python -m pip install "git+https://github.com/parisaghm/csv-safe-restore@v0.1.0a1"
 try-alpha/bin/csv-safe-restore --version
 ```
 
@@ -228,7 +221,7 @@ try-alpha/bin/csv-safe-restore --version
 Also try the attached wheel (copy its link from the release page):
 
 ```console
-try-alpha/bin/python -m pip install --force-reinstall "https://github.com/OWNER/csv-safe-restore/releases/download/v0.1.0a1/csv_safe_restore-0.1.0a1-py3-none-any.whl"
+try-alpha/bin/python -m pip install --force-reinstall "https://github.com/parisaghm/csv-safe-restore/releases/download/v0.1.0a1/csv_safe_restore-0.1.0a1-py3-none-any.whl"
 ```
 
 - [ ] It installs and `--version` works.

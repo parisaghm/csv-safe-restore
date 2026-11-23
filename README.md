@@ -4,8 +4,8 @@ Restore identifiers that a spreadsheet damaged in a CSV file, using a clean
 reference copy of the same data — and never guess.
 
 > **Status: alpha (0.1.0a1).** The tool has been tested carefully, but it is
-> new and has not yet been tested on Windows, on macOS or against a real
-> Excel. Always keep your original files and read the report before you use a
+> new, its automated tests run on Linux, Windows and macOS, and it has not
+> yet been tested against a real Excel. Always keep your original files and read the report before you use a
 > repaired file. Passing tests do not prove that it is safe for your data.
 > Please read [Safety limitations](#safety-limitations) before you rely on it.
 
@@ -378,11 +378,13 @@ Each one was found by testing or review; none of them is hidden.
 
 ### What has and has not been tested
 
-- **Tested:** Linux with Python 3.11, 3.12, 3.13 and 3.14; LibreOffice 26.2
-  round trips.
-- **Not tested yet:** Windows, macOS, and real Excel. Excel behaviour was
-  implemented from Microsoft's documented rules and a simulation. The GitHub
-  Actions workflow tests Windows and macOS once the repository is public.
+- **Tested:** the full test suite and the command-line examples pass on
+  Linux, Windows and macOS with Python 3.11, 3.12, 3.13 and 3.14 (GitHub
+  Actions); the built package installs and runs on all three. LibreOffice 26.2
+  round trips on Linux.
+- **Not tested yet:** real Excel. Excel behaviour was implemented from
+  Microsoft's documented rules and a simulation. Windows and macOS were tested
+  only by the automated tests, not by people using real files.
 - **Review:** the code went through three independent adversarial reviews and
   a re-check. Each round found new wrong-repair cases, all fixed and covered by
   tests. More may exist; please [report them](CONTRIBUTING.md#reporting-a-wrong-repair).

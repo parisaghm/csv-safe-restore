@@ -3,7 +3,7 @@
 All notable changes to this project are listed here. Versions follow
 [PEP 440](https://peps.python.org/pep-0440/): `a` marks an alpha release.
 
-## 0.1.0a1 — first public alpha (not yet released)
+## 0.1.0a1 — first public alpha (2026-11-23)
 
 First public release, for testing and feedback. **Not ready for unattended
 production use.** Keep your original files and read the report before you use
@@ -36,5 +36,9 @@ a repaired file.
 
 See [README.md](README.md#safety-limitations). In short: intentional edits that
 look exactly like damage are restored; a key and a confirming column that were
-moved together cannot be detected; Windows, macOS and real Excel have not been
-tested yet.
+moved together cannot be detected; real Excel has not been tested yet.
+
+### Tested on
+
+- Linux, Windows and macOS with Python 3.11, 3.12, 3.13 and 3.14, by the
+  automated tests in GitHub Actions.

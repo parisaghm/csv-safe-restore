@@ -8,7 +8,10 @@ Date: 2026-11-18. Nothing has been published. There is no remote repository.
 > [CHANGELOG.md](CHANGELOG.md) and the README. The findings below are kept as
 > they were written. The publishing decisions listed at the end have since
 > been settled: the copyright holder stays neutral, no package author is
-> named, and the install commands use the repository address.
+> named, and the install commands use the repository address. The GitHub
+> Actions workflow has since run: all tests pass on Linux, Windows and macOS
+> with Python 3.11–3.14, after one fix (a folder given as an input file is now
+> reported as a folder on Windows too, instead of "Permission denied").
 
 This review had five parts: an independent adversarial review (the third so
 far), a focused re-check of the fixes from that review, a new `--strict` mode,
