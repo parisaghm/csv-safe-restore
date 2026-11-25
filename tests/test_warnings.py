@@ -224,6 +224,26 @@ def test_what_is_copied_back_does_not_depend_on_the_reference_warning() -> None:
         assert repaired_rows(analysis) == [["R0", expected]]
 
 
+@pytest.mark.parametrize(
+    ("ending_in_zero", "others", "reported"),
+    [(1, 0, False), (2, 0, False), (3, 0, True), (4, 6, False), (5, 5, True),
+     (18, 82, False), (19, 81, True)],
+)
+def test_the_documented_trade_off_for_16_digit_numbers(
+    ending_in_zero: int, others: int, reported: bool
+) -> None:
+    # The examples given in the README's Safety limitations.
+    values = [str(10**15 + 10 * i) for i in range(ending_in_zero)]
+    values += [str(2 * 10**15 + 10 * i + 3) for i in range(others)]
+    analysis = run(reference_with(values), reference_with(values), identifiers="account")
+    assert bool(warnings_with(analysis, "more than chance")) is reported
+
+
+def test_one_17_digit_number_ending_in_00_is_reported() -> None:
+    reference = reference_with(["67254614961591400"])
+    assert warnings_with(run(reference, reference, identifiers="account"), "more than chance")
+
+
 def test_a_cut_off_number_too_long_for_a_float_chance_does_not_crash() -> None:
     # 10 ** -386 is 0.0 as a float; the check must still work.
     reference = reference_with(["1" + "2" * 14 + "0" * 386])

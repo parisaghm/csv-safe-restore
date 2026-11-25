@@ -266,12 +266,22 @@ What changed in the report, in plain words:
 
 What is still not perfect:
 
+- **The 15 deliberate changes are still undone.** This is an unresolved
+  safety limitation. The new note only makes the risk visible; it does not
+  prevent it. Nothing in the files can tell a person's `00123` → `123` from a
+  spreadsheet's.
+
 - The deliberate-edit note is broad on these files (for example 1,612 of
   2,861 restorations): after a spreadsheet, almost every restored leading
   zero *could* have been removed on purpose. The tool cannot narrow this down
   unless other values in the same column kept their zeros.
-- A single cut-off 16-digit number in the reference is no longer reported,
-  because it cannot be told apart from a genuine one.
+- **Isolated cut-off numbers in the reference are no longer reported.** The
+  warning now needs less than a 1 in 100 chance that genuine numbers end in
+  zeros that often. For 16-digit numbers, 3 of 3, 5 of 10 or 19 of 100 ending
+  in `0` are reported; 1 or 2 numbers, 4 of 10 or 18 of 100 are not. One
+  17-digit number ending in `00` is still reported. This removed 88 false
+  warnings here and 54 in the benchmark, and costs detection of a few cut-off
+  numbers in a large column. It never changes what is restored.
 - The formatting note also appears for price columns, where it is harmless.
 
 ## How to repeat

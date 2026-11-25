@@ -352,7 +352,9 @@ Each one was found by testing or review; none of them is hidden.
   can check, and *NOTES* says how many restorations are of this kind. If other
   matched values in the same column still have their leading zeros, the note
   points to that column, because then a spreadsheet did not strip the whole
-  column. The tool never knows what a person meant.
+  column. The tool never knows what a person meant. **This is not solved:**
+  the note only makes the risk visible. In a real LibreOffice test, 15 of 15
+  deliberate `00123` → `123` changes were still undone.
 - **The default mode cannot detect a key and a confirming column that moved
   together.** If renumbering moved both the ID and, say, the customer name to
   another record in the same way, the two columns agree with each other.
@@ -365,10 +367,17 @@ Each one was found by testing or review; none of them is hidden.
 - **The reference file must be clean.** Values are copied exactly from it.
   Reference values with an obvious damage shape (`5.90123E+12`, `#NAME?`,
   `1-Mar`) are never copied back, but a reference value that already lost its
-  leading zeros looks like any other number. Long numbers whose digits after
-  the 15th are all zero are reported only when there are more of them than
-  chance explains (one genuine 16-digit number in ten ends in `0`), so a
-  single cut-off 16-digit number in the reference is not reported.
+  leading zeros looks like any other number.
+- **A few cut-off long numbers in the reference are not reported.** A
+  spreadsheet keeps only 15 digits, so `1234567890123456` can become
+  `1234567890123450`. But one genuine 16-digit number in ten ends in `0` by
+  chance, so one such number proves nothing. The warning is given only when a
+  column has clearly more of them than chance explains (less than a 1 in 100
+  chance). For 16-digit numbers: 3 of 3, 5 of 10 or 19 of 100 ending in `0`
+  are reported; 1 or 2 numbers, 4 of 10 or 18 of 100 are not. One 17-digit
+  number ending in `00` is reported. This trade-off removes false warnings
+  about genuine numbers (64 of them in one real test), at the cost of missing
+  isolated cut-off numbers. The warning never changes what is restored.
 
 ### It can refuse more than you expect
 

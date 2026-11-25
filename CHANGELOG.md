@@ -11,7 +11,9 @@ JSON format are unchanged (new information is added to `warnings`).
 - *NOTES* says how many restorations put back a change a person could also
   have made on purpose (leading zeros, plus sign or decimal zeros removed,
   `TRUE` for `true`). If matched values in the same column kept their leading
-  zeros, the column is named as the place to check first.
+  zeros, the column is named as the place to check first. This does not fix
+  the limitation: such deliberate changes are still undone (15 of 15 in the
+  real LibreOffice test); the note only makes the risk visible.
 - *NOTES* names columns that were not checked but changed exactly like
   spreadsheet damage (`00501` → `501`, `+44…` → `44…`). Formatting-only
   changes (`4.50` → `4.5`, `true` → `TRUE`) are summed up in one shorter note.
@@ -21,7 +23,9 @@ JSON format are unchanged (new information is added to `warnings`).
   genuine long numbers that end in `0` by chance. Cut-off numbers are
   reported only when a column has more of them than chance explains. Values
   in scientific notation, error values and spreadsheet dates are reported as
-  before.
+  before. Trade-off: a few isolated cut-off numbers (for example 1 or 2
+  16-digit numbers, or 18 of 100) are no longer reported; see the README's
+  *Safety limitations*.
 - Real-world validation with real LibreOffice round trips of a realistic
   product file and order-line file (`validation/`,
   [docs/REAL_WORLD_VALIDATION.md](docs/REAL_WORLD_VALIDATION.md)): 0 incorrect

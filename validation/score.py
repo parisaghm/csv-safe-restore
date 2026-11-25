@@ -44,6 +44,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -56,6 +57,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from make_dataset import TABLES  # noqa: E402
 
 MODES = {"default": [], "--trust-key": ["--trust-key"]}
+# The tool is run from the source in this repository, never from an older
+# installed copy.
+SOURCE = Path(__file__).resolve().parent.parent / "src"
+
+
+def tool_environment() -> dict[str, str]:
+    paths = [str(SOURCE), os.environ.get("PYTHONPATH", "")]
+    return dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, paths)))
 OUTCOMES = ["restored", "left_for_review", "intentional_undone", "incorrect", "untouched"]
 MONTH = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
 
@@ -117,7 +126,8 @@ def run_tool(table: str, reference: Path, edited: Path,
             command.remove("--auto-detect")
         else:
             command += ["--identifier-columns", ",".join(spec["identifiers"])]
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                                env=tool_environment())
         if result.returncode not in (0, 1):
             raise SystemExit(f"csv-safe-restore failed ({result.returncode}): {result.stderr}")
         return read_rows(output)[1], result.returncode, json.loads(result.stdout)
