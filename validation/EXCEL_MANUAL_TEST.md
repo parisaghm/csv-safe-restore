@@ -59,7 +59,8 @@ If your Excel saved the file with semicolons (common on computers set to a
 European region), add `--delimiter ";"` to each command. The script converts
 the separator before scoring; no value is changed.
 
-Each command prints one line per mode. The columns mean:
+Each command prints one line per mode (default, `--trust-key`, and automatic
+column detection). The columns mean:
 
 | Column | Meaning | What we hope for |
 | --- | --- | --- |
@@ -70,6 +71,8 @@ Each command prints one line per mode. The columns mean:
 | Undone | a deliberate change was put back (known limitation) | 15 for products, 0 for orders |
 | Other cols | a non-identifier cell was changed | **must be 0** |
 | Inputs same | the input files were left untouched | **must be yes** |
+| False warnings | a warning that says something untrue | 0 |
+| Not mentioned | columns Excel changed that the report neither checked nor named | none |
 
 For the full breakdown, add `--markdown excel-results.md` and open that file.
 

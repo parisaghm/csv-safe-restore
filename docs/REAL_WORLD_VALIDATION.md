@@ -1,6 +1,8 @@
 # Real-world validation (Phase 2)
 
 Date: 2026-11-24. Version tested: 0.1.0a1 (application code unchanged).
+A follow-up on 2026-11-25 re-ran everything with clearer warnings (development
+version after 0.1.0a1); see [Follow-up: clearer warnings](#follow-up-clearer-warnings).
 
 This page answers one question: **what happens when realistic business files
 go through a real spreadsheet program, and the tool is then asked to repair
@@ -41,7 +43,8 @@ Everything needed to repeat the test is in [`validation/`](../validation/).
 - **Automatic column detection misses damaged columns.** Customs codes
   (`8471.30` → `8471.3`), `true/false` flags and phone numbers (`+44…` →
   `44…`) were not checked unless named with `--identifier-columns`, and the
-  report gave no hint for them.
+  report gave no hint for them. *(The development version now names them;
+  see the follow-up.)*
 
 ## What was tested
 
@@ -200,12 +203,14 @@ In order of importance:
    pass a new adversarial review, and the 0-incorrect results here must stay 0.
    Until then, the README should say plainly that the default mode often
    refuses on such files.
-3. **Warn about skipped columns that look damaged.** When a column outside the
+3. *(Done in the development version.)* **Warn about skipped columns that
+   look damaged.** When a column outside the
    identifier list has many changes of a known spreadsheet kind (`8471.30` →
    `8471.3`, `true` → `TRUE`, `+44…` → `44…`), name it in the report and
    suggest `--identifier-columns`. This only adds a message; it repairs
    nothing by itself.
-4. **Reduce the false "reference looks damaged" warning** for long numbers
+4. *(Done in the development version.)* **Reduce the false "reference looks
+   damaged" warning** for long numbers
    that end in `0`, or word it as "may be damaged".
 5. **Decide whether to support a different separator in the edited file**
    (semicolon from European Excel). This is a real-world need; it must keep
@@ -213,6 +218,61 @@ In order of importance:
 
 Items 2–5 change behaviour or messages and should be discussed before any code
 is written.
+
+## Follow-up: clearer warnings
+
+Date: 2026-11-25. Development version after 0.1.0a1 (recommended priorities 3
+and 4, plus a clearer note about deliberate edits). **What is restored did not
+change**: on every real LibreOffice file, the benchmark and the examples, the
+old and the new version wrote byte-identical repaired files and gave the same
+exit codes and the same JSON report apart from the `warnings` list.
+
+The scorer now also judges every warning against what is known to be true,
+including runs with automatic column detection (no `--identifier-columns`).
+"False warning" means the warning says something untrue, for example that the
+clean reference file looks damaged. "Damaged column not mentioned" means the
+spreadsheet changed a column that was neither checked nor named anywhere in
+the report.
+
+| 18 real runs (2 files × 3 ways of opening × 3 modes) | 0.1.0a1 | development version |
+| --- | --- | --- |
+| Incorrect restorations | **0** | **0** |
+| Restored values | same | same |
+| Deliberate changes undone (counted separately) | 15 in each products run | 15 in each products run |
+| … of those, covered by a warning that says so | 0 | **15 of 15** |
+| False warnings | 18 (one per run) | **0** |
+| Runs with a damaged column not mentioned | 13 (5 with codes, flags or phone numbers; 8 with prices only) | **0** |
+
+What changed in the report, in plain words:
+
+- **Deliberate edits.** A note now says how many restorations put back a
+  change a person could also have made on purpose (removed leading zeros, a
+  removed plus sign, `TRUE` for `true`). It says plainly that the tool cannot
+  tell which it was. It does not claim to know what a person meant: it covers
+  every such restoration, not only the 15 that were really deliberate.
+- **Unchecked columns.** `postal_code`, `phone` and `hs_code` are now named
+  when they are not checked, with a count and an example
+  (`'00377' -> '377'`). Columns where only the formatting changed (`price`
+  `137.00` → `137`, `active` `true` → `TRUE`) are summed up in one shorter
+  note that says this is usually harmless for amounts and yes/no flags. The
+  price notes are counted as true, because LibreOffice really changed those
+  values, but they are harmless here.
+- **False reference warning.** The 64 supplier accounts and 24 customer
+  accounts that end in `0` by chance are no longer reported: in a clean file
+  about one 16-digit number in ten ends in `0`. A column is reported only when
+  it has more such numbers than chance explains. Scientific notation, error
+  values and spreadsheet dates in the reference are reported as before. The
+  benchmark's 54 false reference warnings disappeared the same way.
+
+What is still not perfect:
+
+- The deliberate-edit note is broad on these files (for example 1,612 of
+  2,861 restorations): after a spreadsheet, almost every restored leading
+  zero *could* have been removed on purpose. The tool cannot narrow this down
+  unless other values in the same column kept their zeros.
+- A single cut-off 16-digit number in the reference is no longer reported,
+  because it cannot be told apart from a genuine one.
+- The formatting note also appears for price columns, where it is harmless.
 
 ## How to repeat
 

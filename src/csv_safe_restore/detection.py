@@ -7,6 +7,8 @@ always describes exactly what a repair would do.
 
 from __future__ import annotations
 
+import math
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 
@@ -15,10 +17,16 @@ from .checks import gtin_problem
 from .errors import CsvSafeRestoreError
 from .matching import Key, MatchResult
 from .patterns import (
+    BOOLEAN_UPPERCASED,
+    LEADING_ZEROS,
+    NUMBER_REFORMATTED,
     CorruptionIndex,
+    chance_of_trailing_zeros,
     explain_corruption,
     is_spreadsheet_vulnerable,
     looks_damaged,
+    looks_truncated,
+    short_description,
 )
 from .reader import Table
 
@@ -70,6 +78,16 @@ class Collision:
     lines: list[int]
 
 
+@dataclass(frozen=True)
+class UncheckedChange:
+    """A change in a column that is not checked, which a spreadsheet would make."""
+
+    line: int
+    original: str
+    current: str
+    pattern: str
+
+
 @dataclass
 class Analysis:
     original: Table
@@ -87,6 +105,9 @@ class Analysis:
     unchanged_identifier_cells: int = 0
     # Edits in ordinary columns of matched records; always kept.
     other_edits: dict[str, int] = field(default_factory=dict)
+    # Those of the edits above that look exactly like spreadsheet damage. Only
+    # used for warnings; these columns are never repaired.
+    unchecked_damage: dict[str, list[UncheckedChange]] = field(default_factory=dict)
     columns_only_in_reference: list[str] = field(default_factory=list)
     columns_only_in_edited: list[str] = field(default_factory=list)
     strict: bool = True
@@ -391,6 +412,7 @@ def _collect_cell_findings(result: Analysis) -> None:
     ]
     other_pairs = _other_columns(result)
     other_edits: Counter[str] = Counter()
+    unchecked_damage: dict[str, list[UncheckedChange]] = defaultdict(list)
     # (column, current value) -> {reference value: [lines]} for changed cells
     collapsed: dict[tuple[str, str], dict[str, list[int]]] = defaultdict(dict)
 
@@ -456,10 +478,17 @@ def _collect_cell_findings(result: Analysis) -> None:
             collapsed[(name, now)].setdefault(before, []).append(line)
 
         for name, original_col, edited_col in other_pairs:
-            if original_row[original_col] != edited_row[edited_col]:
+            before, now = original_row[original_col], edited_row[edited_col]
+            if before != now:
                 other_edits[name] += 1
+                corruption = explain_corruption(before, now)
+                if corruption is not None:
+                    unchecked_damage[name].append(
+                        UncheckedChange(line, before, now, corruption.pattern)
+                    )
 
     result.other_edits = dict(other_edits)
+    result.unchecked_damage = dict(unchecked_damage)
     for (name, now), sources in collapsed.items():
         if len(sources) > 1:
             lines = sorted(line for found in sources.values() for line in found)
@@ -630,7 +659,8 @@ def _collect_warnings(result: Analysis) -> None:
         )
     for name in result.identifier_columns:
         column = original.column_index(name)
-        damaged = [row[column] for row in original.rows if looks_damaged(row[column])]
+        values = [row[column] for row in original.rows]
+        damaged = [value for value in values if looks_damaged(value, include_truncation=False)]
         if damaged:
             result.warnings.append(
                 f"The reference file itself has {len(damaged)} value(s) in column {name!r} "
@@ -638,6 +668,17 @@ def _collect_warnings(result: Analysis) -> None:
                 "damage shape are never copied back; all others are restored exactly as "
                 "the reference file has them, so check that it is a clean copy."
             )
+        truncated = _unlikely_trailing_zeros(values)
+        if truncated:
+            result.warnings.append(
+                f"The reference file itself has {len(truncated)} long number(s) in column "
+                f"{name!r} whose digits after the 15th are all zero (for example "
+                f"{truncated[0]!r}), more than chance explains: a spreadsheet may have cut "
+                "them off. They are restored exactly as the reference file has them, so "
+                "check that it is a clean copy."
+            )
+    _warn_about_possible_intentional_edits(result)
+    _warn_about_unchecked_damage(result)
     if result.collisions and result.repairs and not result.strict:
         result.warnings.append(
             "Some damaged values could come from more than one reference record "
@@ -651,6 +692,8 @@ def _collect_warnings(result: Analysis) -> None:
                 continue
             if name not in result.edited.header:
                 continue
+            if name in result.unchecked_damage:
+                continue  # already named, with what changed in it
             vulnerable, filled = _vulnerable_share(original, index)
             if vulnerable:
                 result.warnings.append(
@@ -683,3 +726,137 @@ def _collect_warnings(result: Analysis) -> None:
                 f"(for example {example!r}). If a key was damaged, its record shows up "
                 "below as unmatched and is not repaired."
             )
+
+
+# A shape test cannot prove that a 16+ digit number was cut off: one genuine
+# 16-digit number in ten ends in 0. The reference warning is given only when
+# a column has more such numbers than this chance explains.
+_TRUNCATION_CHANCE_LIMIT = 0.01
+
+
+def _unlikely_trailing_zeros(values: list[str]) -> list[str]:
+    """Values that look cut off, if there are too many of them to be chance."""
+    distinct = list(dict.fromkeys(values))  # a repeated value is one piece of evidence
+    truncated = [value for value in distinct if looks_truncated(value)]
+    if not truncated:
+        return []
+    expected = sum(chance_of_trailing_zeros(value) for value in distinct)
+    if _chance_of_at_least(len(truncated), expected) >= _TRUNCATION_CHANCE_LIMIT:
+        return []
+    return truncated
+
+
+def _chance_of_at_least(count: int, expected: float) -> float:
+    """Chance of ``count`` or more rare events when ``expected`` are expected (Poisson)."""
+    if count <= expected:
+        return 1.0
+    if expected <= 0.0:  # e.g. numbers so long that their chance rounds to 0
+        return 0.0
+    term = math.exp(-expected + count * math.log(expected) - math.lgamma(count + 1))
+    total, k = 0.0, count
+    # Every next term is smaller by expected / (k + 1) < 1.
+    while term > 0 and term > total * 1e-12:
+        total += term
+        k += 1
+        term *= expected / k
+    return total
+
+
+# Changes a person can make on purpose that are identical to spreadsheet
+# damage: removing leading zeros, dropping a plus sign or decimal zeros,
+# writing TRUE for true. Scientific notation, cut-off digits, dates and error
+# values are not typed on purpose in an identifier column.
+_COULD_BE_TYPED = {LEADING_ZEROS, NUMBER_REFORMATTED, BOOLEAN_UPPERCASED}
+
+
+def _warn_about_possible_intentional_edits(result: Analysis) -> None:
+    """Say plainly that some restorations may undo a deliberate edit.
+
+    Nothing here can know what a person meant. It only names the
+    restorations whose edited value is something a person could have typed.
+    """
+    typed = [f for f in result.repairs if f.pattern in _COULD_BE_TYPED]
+    if not typed:
+        return
+    example = typed[0]
+    kinds = ", ".join(sorted({short_description(f.pattern) for f in typed}))
+    result.warnings.append(
+        f"{len(typed)} of the {len(result.repairs)} restoration(s) put back a value that a "
+        f"person could also have changed on purpose ({kinds}; for example line "
+        f"{example.line}, {example.column}: {example.current!r} -> {example.original!r}). "
+        "A spreadsheet makes exactly the same change, so the tool cannot tell which it "
+        "was. If anyone may have edited these values on purpose, check those restorations "
+        "before using the file."
+    )
+    # A spreadsheet removes leading zeros from every number in a column. If
+    # matched records kept theirs, the restored ones did not all lose them
+    # that way. (New records are left out: they may have been added later.)
+    original, edited = result.original, result.edited
+    for name in dict.fromkeys(f.column for f in typed if f.pattern == LEADING_ZEROS):
+        original_col, edited_col = original.column_index(name), edited.column_index(name)
+        kept = sum(
+            1
+            for match, row in zip(result.matches.rows, edited.rows)
+            if match.original_index is not None
+            and _has_leading_zero(row[edited_col])
+            and row[edited_col] == original.rows[match.original_index][original_col]
+        )
+        if kept:
+            result.warnings.append(
+                f"In column {name!r}, {kept} matched value(s) still have their leading zeros, "
+                "so a spreadsheet did not remove the zeros from the whole column. Check the "
+                "restored leading zeros in this column with extra care: some may have been "
+                "removed on purpose."
+            )
+
+
+def _has_leading_zero(value: str) -> bool:
+    return value.isascii() and value.isdigit() and len(value) > 1 and value[0] == "0"
+
+
+_DECIMAL = re.compile(r"\d+\.\d+")
+
+
+def _formatting_only(change: UncheckedChange) -> bool:
+    """True when only the look of a number or true/false changed (1.50 -> 1.5)."""
+    if change.pattern == BOOLEAN_UPPERCASED:
+        return True
+    return (
+        change.pattern == NUMBER_REFORMATTED
+        and _DECIMAL.fullmatch(change.original) is not None
+        and change.current == change.original.rstrip("0").rstrip(".")
+    )
+
+
+def _warn_about_unchecked_damage(result: Analysis) -> None:
+    """Name columns that are not checked but changed exactly like spreadsheet damage.
+
+    These are warnings only: such a column is never repaired unless the user
+    names it with --identifier-columns.
+    """
+    formatting: list[str] = []
+    for name, changes in result.unchecked_damage.items():
+        damage = [change for change in changes if not _formatting_only(change)]
+        if damage:
+            first = damage[0]
+            kinds = ", ".join(sorted({short_description(change.pattern) for change in changes}))
+            result.warnings.append(
+                f"Column {name!r} was not checked, but {len(changes)} of its value(s) changed "
+                f"exactly as a spreadsheet changes them ({kinds}; for example line "
+                f"{first.line}: {first.original!r} -> {first.current!r}). They were left as "
+                "they are. If the column holds codes or IDs, add it to --identifier-columns "
+                "and run again."
+            )
+        else:
+            first = changes[0]
+            formatting.append(
+                f"{name!r} ({len(changes)}, for example {first.original!r} -> {first.current!r})"
+            )
+    if formatting:
+        result.warnings.append(
+            "Only the formatting changed in column(s) that were not checked: "
+            + ", ".join(formatting)
+            + ". This is usually harmless for amounts and yes/no flags, but codes (such as "
+            "customs codes) can lose their meaning. If one of these columns holds codes, add "
+            "it to --identifier-columns and run again."
+        )

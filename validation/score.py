@@ -25,6 +25,12 @@ Every non-identifier cell must come out exactly as it went in; any change is
 reported as ``other_column_changed``. The input files are hashed before and
 after each run and must not change.
 
+The warnings of each run are judged too, against what is known to be true:
+the reference files are clean, so a "reference file itself" warning is always
+false; a warning that names an unchecked column is true only if the
+spreadsheet really changed that column. Warnings are also judged for a run
+with automatic column detection (no ``--identifier-columns``).
+
 An externally produced file (for example from a real Excel) can be scored with
 ``--edited path --table products --name excel-windows``; see
 EXCEL_MANUAL_TEST.md.
@@ -37,6 +43,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -91,22 +98,70 @@ class Result:
     by_scenario: dict = field(default_factory=lambda: defaultdict(Counter))
     by_column: dict = field(default_factory=lambda: defaultdict(Counter))
     problems: list = field(default_factory=list)  # incorrect and intentional_undone cells
+    warnings: list = field(default_factory=list)  # (verdict, text) for every warning
+    undone_flagged: int = 0  # undone cells covered by the "on purpose" warning
+    unwarned: list = field(default_factory=list)  # damaged, unchecked and never mentioned
     other_column_changed: int = 0
     inputs_unchanged: bool = True
     exit_code: int = 0
 
 
-def run_tool(table: str, reference: Path, edited: Path, flags: list[str]) -> tuple[list[list[str]], int]:
+def run_tool(table: str, reference: Path, edited: Path,
+             flags: list[str]) -> tuple[list[list[str]], int, dict]:
     spec = TABLES[table]
     with tempfile.TemporaryDirectory() as folder:
         output = Path(folder) / "repaired.csv"
         command = [sys.executable, "-m", "csv_safe_restore", "repair", str(reference), str(edited),
-                   "--key", spec["key"], "--identifier-columns", ",".join(spec["identifiers"]),
-                   "--output", str(output), "--format", "json", *flags]
+                   "--key", spec["key"], "--output", str(output), "--format", "json", *flags]
+        if "--auto-detect" in flags:  # not a tool option: leave out --identifier-columns
+            command.remove("--auto-detect")
+        else:
+            command += ["--identifier-columns", ",".join(spec["identifiers"])]
         result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
         if result.returncode not in (0, 1):
             raise SystemExit(f"csv-safe-restore failed ({result.returncode}): {result.stderr}")
-        return read_rows(output)[1], result.returncode
+        return read_rows(output)[1], result.returncode, json.loads(result.stdout)
+
+
+# Patterns a person could also produce on purpose (see detection._COULD_BE_TYPED).
+TYPED_PATTERNS = {"leading_zeros_removed", "number_reformatted", "boolean_uppercased"}
+
+
+def spreadsheet_damaged_columns(header: list[str], intended: list[list[str]],
+                                edited: list[list[str]]) -> list[str]:
+    """Columns in which the spreadsheet changed at least one value."""
+    return [
+        name for index, name in enumerate(header)
+        if any(want[index] != got[index] and damage_kind(want[index], got[index]) != "other"
+               for want, got in zip(intended, edited))
+    ]
+
+
+def judge_warnings(table: str, header: list[str], intended: list[list[str]],
+                   edited: list[list[str]], warnings: list[str]) -> list[tuple[str, str]]:
+    """Label each warning true, false, harmless or info, using the known truth."""
+    spreadsheet_changed = spreadsheet_damaged_columns(header, intended, edited)
+    judged = []
+    for text in warnings:
+        if text.startswith("The reference file itself"):
+            verdict = "FALSE (the reference is clean)"
+        elif "was not checked, but" in text:
+            name = re.search(r"Column '([^']+)'", text).group(1)
+            verdict = "true" if name in spreadsheet_changed else "FALSE (column not damaged)"
+        elif text.startswith("Only the formatting changed"):
+            names = re.findall(r"'([^']+)' \(\d+", text)
+            wrong = [n for n in names if n not in spreadsheet_changed]
+            identifiers = [n for n in names if n in TABLES[table]["identifiers"]]
+            verdict = (f"FALSE for {', '.join(wrong)}" if wrong
+                       else "true" if identifiers else "true, harmless here (amounts)")
+        elif "still have their leading zeros" in text:
+            verdict = "FALSE (the whole file went through the spreadsheet)"
+        elif "could also have changed on purpose" in text:
+            verdict = "true (cannot be checked further)"
+        else:
+            verdict = "info (unchanged since 0.1.0a1)"
+        judged.append((verdict, text))
+    return judged
 
 
 def score(table: str, folder: Path, edited_path: Path, flags: list[str]) -> Result:
@@ -121,9 +176,20 @@ def score(table: str, folder: Path, edited_path: Path, flags: list[str]) -> Resu
     by_key = {row[key]: row for row in reference}
 
     before = {p: digest(p) for p in (folder / "reference.csv", edited_path)}
-    repaired, exit_code = run_tool(table, folder / "reference.csv", edited_path, flags)
+    repaired, exit_code, json_report = run_tool(table, folder / "reference.csv", edited_path, flags)
     result = Result(exit_code=exit_code)
     result.inputs_unchanged = before == {p: digest(p) for p in before}
+    warnings = json_report["warnings"]
+    result.warnings = judge_warnings(table, header, intended, edited, warnings)
+    result.unwarned = [
+        name for name in spreadsheet_damaged_columns(header, intended, edited)
+        if name not in json_report["identifier_columns"] and name != spec["key"]
+        and not any(f"'{name}'" in text for text in warnings)
+    ]
+    typed = set()
+    if any("could also have changed on purpose" in text for text in warnings):
+        typed = {(c["line"], c["column"]) for c in json_report["confirmed_damage"]
+                 if c["pattern"] in TYPED_PATTERNS}
 
     for position, (want, got, out, facts) in enumerate(zip(intended, edited, repaired, truth)):
         _, row_key, source_key, scenario, intentional = facts
@@ -149,6 +215,8 @@ def score(table: str, folder: Path, edited_path: Path, flags: list[str]) -> Resu
                 kind = damage_kind(want[index], got[index])
                 result.by_kind[kind][outcome] += 1
                 result.by_column[name][outcome] += 1
+            if outcome == "intentional_undone" and (position + 2, name) in typed:
+                result.undone_flagged += 1
             if outcome in ("incorrect", "intentional_undone"):
                 result.problems.append({
                     "line": position + 2, "key": got[key], "column": name, "scenario": scenario,
@@ -162,11 +230,18 @@ def damaged(result: Result) -> int:
     return sum(n for kind in result.by_kind.values() for n in kind.values())
 
 
+def false_warnings(result: Result) -> int:
+    return sum(1 for verdict, _ in result.warnings if verdict.startswith("FALSE"))
+
+
 def summary_line(name: str, result: Result) -> str:
     o = result.outcomes
+    undone = o["intentional_undone"]
+    flagged = f" ({result.undone_flagged} warned)" if undone else ""
     return (f"| {name} | {damaged(result)} | {o['restored']} | {o['left_for_review']} | "
-            f"{o['incorrect']} | {o['intentional_undone']} | {result.other_column_changed} | "
-            f"{'yes' if result.inputs_unchanged else '**NO**'} |")
+            f"{o['incorrect']} | {undone}{flagged} | {result.other_column_changed} | "
+            f"{'yes' if result.inputs_unchanged else '**NO**'} | {false_warnings(result)} | "
+            f"{', '.join(result.unwarned) or '-'} |")
 
 
 def report(results: dict[tuple[str, str, str], Result]) -> str:
@@ -177,11 +252,21 @@ def report(results: dict[tuple[str, str, str], Result]) -> str:
         "`validation/data/<table>/<profile>/` (see each `run.txt`). **No Excel was run.**",
         "",
         "| Table / profile / mode | Damaged cells | Restored | Left for review | Incorrect | "
-        "Intentional change undone | Other columns changed | Inputs unchanged |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "Intentional change undone | Other columns changed | Inputs unchanged | False warnings | "
+        "Damaged columns not mentioned |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     lines += [summary_line(" / ".join(k), r) for k, r in results.items()]
+    lines += ["", "## Warnings", "",
+              "Each warning of each run, judged against the known truth. Runs marked "
+              "`auto-detect` name no identifier columns.", "",
+              "| Run | Verdict | Warning |", "| --- | --- | --- |"]
+    for name, result in results.items():
+        for verdict, text in result.warnings:
+            lines.append(f"| {' / '.join(name)} | {verdict} | {text.replace('|', '/')} |")
     for (table, profile, mode), result in results.items():
+        if mode == "auto-detect":
+            continue
         lines += ["", f"## {table} / {profile} / {mode}", "",
                   "| What the spreadsheet did | Cells | Restored | Left for review | Incorrect | Undone |",
                   "| --- | --- | --- | --- | --- | --- |"]
@@ -238,8 +323,14 @@ def main() -> None:
     for table, profile, edited in jobs:
         for mode, flags in MODES.items():
             results[(table, profile, mode)] = score(table, args.data / table, edited, flags)
+        # What a user gets without --identifier-columns. Its counts cover the
+        # same columns as the others, so cells in undetected columns show up
+        # as left for review.
+        results[(table, profile, "auto-detect")] = score(
+            table, args.data / table, edited, ["--auto-detect"])
 
-    print("| Table / profile / mode | Damaged | Restored | Review | Incorrect | Undone | Other cols | Inputs same |")
+    print("| Table / profile / mode | Damaged | Restored | Review | Incorrect | Undone | Other cols "
+          "| Inputs same | False warnings | Not mentioned |")
     for name, result in results.items():
         print(summary_line(" / ".join(name), result))
     if args.markdown:

@@ -2,7 +2,8 @@
 
 The edited files in validation/data/<table>/<profile>/ were written by a real
 LibreOffice (see each run.txt), not by a model. Every identifier cell of the
-tool's output is compared with what the person intended to save.
+tool's output is compared with what the person intended to save, and every
+warning is judged against what is known to be true.
 """
 
 from __future__ import annotations
@@ -25,7 +26,9 @@ sys.modules[spec.name] = score  # dataclasses look the module up while it loads
 spec.loader.exec_module(score)
 
 
-@pytest.mark.parametrize("flags", [[], ["--trust-key"]], ids=["default", "trust-key"])
+@pytest.mark.parametrize(
+    "flags", [[], ["--trust-key"], ["--auto-detect"]], ids=["default", "trust-key", "auto-detect"]
+)
 @pytest.mark.parametrize("edited", EDITED, ids=lambda p: f"{p.parent.parent.name}-{p.parent.name}")
 def test_real_round_trip_has_no_incorrect_restoration(edited: Path, flags: list[str]) -> None:
     table = edited.parent.parent.name
@@ -39,3 +42,11 @@ def test_real_round_trip_has_no_incorrect_restoration(edited: Path, flags: list[
     # The only undone changes are the deliberate "remove the leading zeros"
     # edits, which look exactly like damage (a documented limitation).
     assert {p["scenario"] for p in result.problems} <= {"intentional_edit_like_damage"}
+
+    # Every deliberate change that was undone is covered by the warning that
+    # some restorations may undo a deliberate edit.
+    assert result.undone_flagged == result.outcomes["intentional_undone"]
+    # No warning says something false (the reference files are clean) ...
+    assert [text for verdict, text in result.warnings if verdict.startswith("FALSE")] == []
+    # ... and every column the spreadsheet damaged is either checked or named.
+    assert result.unwarned == []
