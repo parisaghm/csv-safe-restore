@@ -3,6 +3,16 @@
 All notable changes to this project are listed here. Versions follow
 [PEP 440](https://peps.python.org/pep-0440/): `a` marks an alpha release.
 
+## Unreleased
+
+- Real-world validation with real LibreOffice round trips of a realistic
+  product file and order-line file (`validation/`,
+  [docs/REAL_WORLD_VALIDATION.md](docs/REAL_WORLD_VALIDATION.md)): 0 incorrect
+  restorations; 15 deliberate leading-zero removals were undone (the known
+  limitation, counted separately). New documented limitations: order-line files are mostly left
+  for review in the default mode, and some damaged columns are skipped without
+  a warning. Manual steps for a real Excel test. No change to the tool.
+
 ## 0.1.0a1 — first public alpha (2026-11-23)
 
 First public release, for testing and feedback. **Not ready for unattended

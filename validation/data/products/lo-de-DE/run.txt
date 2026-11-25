@@ -1,0 +1,3 @@
+Produced by a real LibreOffice round trip (not a simulation).
+Version: LibreOffice 26.2.6.3 620(Build:3)
+Command: /usr/bin/soffice --headless -env:UserInstallation=file://<temp>/profile "--infilter=Text - txt - csv (StarCalc):44,34,76,1,,1031,false,true" --convert-to "csv:Text - txt - csv (StarCalc):44,34,76,1" --outdir <temp>/out <temp>/in/data.csv

@@ -362,6 +362,11 @@ Each one was found by testing or review; none of them is hidden.
   if you are certain the keys are stable.
 - **Rows whose distinctive columns were edited** (for example a renamed
   customer) are not repaired, even if the key is right.
+- **Transaction files are often left for review.** In order lines or invoices,
+  customers and products repeat, so few columns are unique to one row. In a
+  real LibreOffice test only about a quarter of the damaged order-line values
+  were restored in the default mode; the rest were reported for review. See
+  [docs/REAL_WORLD_VALIDATION.md](docs/REAL_WORLD_VALIDATION.md).
 - **New records cannot be repaired**, only flagged when a value has an obvious
   damage shape (scientific notation, error values, `1-Mar`). There is no
   original to copy.
@@ -373,15 +378,22 @@ Each one was found by testing or review; none of them is hidden.
 - **Automatic column detection may miss columns.** A column is picked only when
   more than half of its values have a fragile shape. Columns with fewer, or
   with values fragile in other ways (`1.10`, `+44123`, `true`), are checked
-  only if you name them with `--identifier-columns`. The report lists columns
-  it skipped that had some fragile values.
+  only if you name them with `--identifier-columns`. The report names some
+  skipped columns (for example postal codes with leading zeros), but not
+  all: in a real LibreOffice test it said nothing about customs codes
+  (`8471.30` → `8471.3`), `true`/`false` flags or `+44…` phone numbers, and
+  their damage stayed in the repaired file.
 
 ### What has and has not been tested
 
 - **Tested:** the full test suite and the command-line examples pass on
   Linux, Windows and macOS with Python 3.11, 3.12, 3.13 and 3.14 (GitHub
-  Actions); the built package installs and runs on all three. LibreOffice 26.2
-  round trips on Linux.
+  Actions); the built package installs and runs on all three. Real
+  LibreOffice 26.2 round trips on Linux, including a realistic product file and
+  order-line file with renumbered, swapped and duplicated records: 0 incorrect
+  restorations. 15 leading zeros that a person had removed on purpose were put
+  back, as described under *Safety limitations* (see
+  [docs/REAL_WORLD_VALIDATION.md](docs/REAL_WORLD_VALIDATION.md)).
 - **Not tested yet:** real Excel. Excel behaviour was implemented from
   Microsoft's documented rules and a simulation. Windows and macOS were tested
   only by the automated tests, not by people using real files.
