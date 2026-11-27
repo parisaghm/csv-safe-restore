@@ -5,13 +5,35 @@ All notable changes to this project are listed here. Versions follow
 
 ## Unreleased
 
+Reports explain more; what is restored has not changed. Exit codes and the
+JSON format are unchanged (new information is added to `warnings`).
+
+- *NOTES* says how many restorations put back a change a person could also
+  have made on purpose (leading zeros, plus sign or decimal zeros removed,
+  `TRUE` for `true`). If matched values in the same column kept their leading
+  zeros, the column is named as the place to check first. This does not fix
+  the limitation: such deliberate changes are still undone (15 of 15 in the
+  real LibreOffice test); the note only makes the risk visible.
+- *NOTES* names columns that were not checked but changed exactly like
+  spreadsheet damage (`00501` → `501`, `+44…` → `44…`). Formatting-only
+  changes (`4.50` → `4.5`, `true` → `TRUE`) are summed up in one shorter note.
+  These columns are never repaired. This replaces the older note about
+  skipped columns when both would name the same column.
+- The "reference file itself looks damaged" warning no longer fires for
+  genuine long numbers that end in `0` by chance. Cut-off numbers are
+  reported only when a column has more of them than chance explains. Values
+  in scientific notation, error values and spreadsheet dates are reported as
+  before. Trade-off: a few isolated cut-off numbers (for example 1 or 2
+  16-digit numbers, or 18 of 100) are no longer reported; see the README's
+  *Safety limitations*.
 - Real-world validation with real LibreOffice round trips of a realistic
   product file and order-line file (`validation/`,
   [docs/REAL_WORLD_VALIDATION.md](docs/REAL_WORLD_VALIDATION.md)): 0 incorrect
   restorations; 15 deliberate leading-zero removals were undone (the known
-  limitation, counted separately). New documented limitations: order-line files are mostly left
-  for review in the default mode, and some damaged columns are skipped without
-  a warning. Manual steps for a real Excel test. No change to the tool.
+  limitation, counted separately). New documented limitation: order-line
+  files are mostly left for review in the default mode. Manual steps for a
+  real Excel test. The scorer also judges every warning against the known
+  truth.
 
 ## 0.1.0a1 — first public alpha (2026-11-23)
 

@@ -270,7 +270,16 @@ The benchmark never renumbers keys. In separate random tests where it did,
    on).
 3. **Read *COLLAPSED VALUES* and *NOTES*.** Collapsed values are different
    originals that now look the same; for those, the match decides which
-   original is restored.
+   original is restored. *NOTES* also says:
+   - how many restorations put back a change a person could have made on
+     purpose (such as removed leading zeros), which the tool cannot tell
+     apart from damage;
+   - which columns were **not checked** but changed exactly like spreadsheet
+     damage (for example a postal code `00501` → `501`). Nothing is restored
+     there; name such a column with `--identifier-columns` if it holds codes.
+     Columns where only the formatting changed (`4.50` → `4.5`,
+     `true` → `TRUE`) are listed together in one shorter note, because that
+     is usually harmless for prices and yes/no flags.
 4. **Save the full report** with `--report report.txt`, or as JSON for a
    script: `--format json --report report.json`. The JSON lists every finding
    with no limit; the text report shows 50 lines per section unless you pass
@@ -340,7 +349,12 @@ Each one was found by testing or review; none of them is hidden.
   modes.** If someone deliberately changed `00123` to `123`, or edited only
   the digits after the 15th of a long number, the change cannot be told apart
   from spreadsheet damage. Every restored value is listed in the report so you
-  can check.
+  can check, and *NOTES* says how many restorations are of this kind. If other
+  matched values in the same column still have their leading zeros, the note
+  points to that column, because then a spreadsheet did not strip the whole
+  column. The tool never knows what a person meant. **This is not solved:**
+  the note only makes the risk visible. In a real LibreOffice test, 15 of 15
+  deliberate `00123` → `123` changes were still undone.
 - **The default mode cannot detect a key and a confirming column that moved
   together.** If renumbering moved both the ID and, say, the customer name to
   another record in the same way, the two columns agree with each other.
@@ -354,6 +368,16 @@ Each one was found by testing or review; none of them is hidden.
   Reference values with an obvious damage shape (`5.90123E+12`, `#NAME?`,
   `1-Mar`) are never copied back, but a reference value that already lost its
   leading zeros looks like any other number.
+- **A few cut-off long numbers in the reference are not reported.** A
+  spreadsheet keeps only 15 digits, so `1234567890123456` can become
+  `1234567890123450`. But one genuine 16-digit number in ten ends in `0` by
+  chance, so one such number proves nothing. The warning is given only when a
+  column has clearly more of them than chance explains (less than a 1 in 100
+  chance). For 16-digit numbers: 3 of 3, 5 of 10 or 19 of 100 ending in `0`
+  are reported; 1 or 2 numbers, 4 of 10 or 18 of 100 are not. One 17-digit
+  number ending in `00` is reported. This trade-off removes false warnings
+  about genuine numbers (64 of them in one real test), at the cost of missing
+  isolated cut-off numbers. The warning never changes what is restored.
 
 ### It can refuse more than you expect
 
@@ -378,11 +402,11 @@ Each one was found by testing or review; none of them is hidden.
 - **Automatic column detection may miss columns.** A column is picked only when
   more than half of its values have a fragile shape. Columns with fewer, or
   with values fragile in other ways (`1.10`, `+44123`, `true`), are checked
-  only if you name them with `--identifier-columns`. The report names some
-  skipped columns (for example postal codes with leading zeros), but not
-  all: in a real LibreOffice test it said nothing about customs codes
-  (`8471.30` → `8471.3`), `true`/`false` flags or `+44…` phone numbers, and
-  their damage stayed in the repaired file.
+  only if you name them with `--identifier-columns`. Their damage stays in the
+  repaired file. *NOTES* names every unchecked column in which a value
+  changed exactly like spreadsheet damage, but only if the change shows: a
+  column the spreadsheet altered in a way no known rule explains is not
+  named.
 
 ### What has and has not been tested
 

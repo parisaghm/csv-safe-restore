@@ -59,6 +59,11 @@ def _corruption(pattern: str) -> Corruption:
     return Corruption(pattern, _DESCRIPTIONS[pattern])
 
 
+def short_description(pattern: str) -> str:
+    """The description of a pattern without its explanation in brackets."""
+    return _DESCRIPTIONS[pattern].split(" (")[0]
+
+
 # --------------------------------------------------------------------------
 # Numbers
 # --------------------------------------------------------------------------
@@ -438,6 +443,24 @@ def looks_damaged(value: str, include_truncation: bool = True) -> str | None:
     if include_truncation and _LOOKS_TRUNCATED.fullmatch(value):
         return "every digit after the 15th is zero (typical precision loss)"
     return None
+
+
+def looks_truncated(value: str) -> bool:
+    """True for a 16+ digit number whose digits after the 15th are all zero."""
+    return value.isascii() and _LOOKS_TRUNCATED.fullmatch(value) is not None
+
+
+def chance_of_trailing_zeros(value: str) -> float:
+    """How often a genuine number of this length ends like :func:`looks_truncated`.
+
+    One 16-digit number in 10 ends in 0 by chance, one 17-digit number in 100
+    ends in 00, and so on. 0.0 for values that cannot look truncated.
+    """
+    if not (value.isascii() and value.isdigit()) or len(value) <= _SPREADSHEET_DIGITS:
+        return 0.0
+    if value[0] == "0":
+        return 0.0
+    return 10.0 ** (_SPREADSHEET_DIGITS - len(value))
 
 
 def is_spreadsheet_vulnerable(value: str) -> bool:

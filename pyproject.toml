@@ -54,4 +54,7 @@ include = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Always test the source in this folder, even if an older copy of the package
+# is installed in the environment.
+pythonpath = ["src"]
 addopts = "-q"
